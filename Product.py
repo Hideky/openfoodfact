@@ -1,6 +1,6 @@
 class Product:
-    """OpenFoodFacts Categorie"""
-    def __init__(self, id, name, brands, nutrition_grade, fat, saturated_fat, sugars, salt):
+    """OpenFoodFacts Product"""
+    def __init__(self, id, name, brands, nutrition_grade, fat, saturated_fat, sugars, salt, url, categorie):
         self.id = id
         self.name = name
         self.brands = brands
@@ -9,4 +9,5 @@ class Product:
         self.saturated_fat = saturated_fat
         self.sugars = sugars
         self.salt = salt
-#data['products'][1]['nutriments']['saturated-fat_100g']
+        self.url = url
+        self.categorie = categorie
