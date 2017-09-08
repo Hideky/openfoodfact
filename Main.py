@@ -9,6 +9,7 @@ from Product import Product
 API_URL = "https://fr.openfoodfacts.org/"
 db = MySQLdb.connect(user='root', passwd='root', host='127.0.0.1', db='openfoodfacts')
 db.set_character_set('utf8')
+categories = list()
 
 def fetch(path):
 	"""Get dynamically data from the REST API of OpenFoodFacts"""
@@ -79,6 +80,7 @@ def get_product(id):
 	return fetch("api/v0/product/{}".format(id))
 
 def get_substitutes(product):
+	"""Get healthier products from a selected product"""
 	url = "cgi/search.pl?tagtype_0=categories&tag_contains_0=contains&tag_0={}&page_size=500&page=1&action=process&json=1"
 	result = fetch_m(url.format(product.categorie))
 	products = list()
@@ -104,8 +106,42 @@ def get_substitutes(product):
 			element['url'], element['categories_prev_tags'][-1] ))
 	return products
 
+def save_product(product):
+	"""Save product in the database"""
+	categories = fetch("categories")
+	cursor = db.cursor()
+	cursor.execute('SET NAMES utf8;')
+	cursor.execute('SET CHARACTER SET utf8;')
+	cursor.execute('SET character_set_connection=utf8;')
+
+	cursor.execute("""INSERT INTO product VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""", 
+		(product.id, product.name, product.brands, product.nutrition_grade, product.fat, 
+			product.saturated_fat, product.sugars, product.salt, product.url, product.categorie))
+	cursor.close()
+	db.commit()
+
+def get_db_products():
+	"""Get products from the database"""
+	cursor = db.cursor(MySQLdb.cursors.DictCursor)
+	cursor.execute('SET NAMES utf8;')
+	cursor.execute('SET CHARACTER SET utf8;')
+	cursor.execute('SET character_set_connection=utf8;')
+
+	cursor.execute("SELECT * FROM product")
+	result = cursor.fetchall()
+	cursor.close()
+	products = list()
+	for element in result:
+		products.append(Product(element['id'], element['name'], element['brands'], element['nutrition_grade'],
+			element['fat'], element['saturated_fat'], 
+			element['sugars'], element['salt'],
+			element['url'], element['categorie']))
+	return products
 
 def categorie_manager():
+	"""Show and interact with categorie"""
+	global categories
+	categories = get_categories()
 	filter_categories = list()
 
 	while "User don't use 0 to exit":
@@ -121,7 +157,7 @@ def categorie_manager():
 				print("{} - {} ({} produits)".format(Color.green(categories[i].id), categories[i].name, categories[i].products))
 
 		# User input
-		uinput = input(Color.cyan("(Entrez: Un numéro pour selectionner la catégorie | Une lettre pour filtrer | 0 pour fermer)\n"))
+		uinput = input(Color.cyan("(Entrez: Numéro - selectionner la catégorie | Lettre(s) - filtrer | 0 - revenir au menu principal)\n"))
 
 		# Exit		
 		if uinput is '0':
@@ -146,6 +182,7 @@ def categorie_manager():
 			continue
 
 def categorie_product_manager(categorie_id):
+	"""Show and interact with categorie's product"""
 	categorie_page = 1
 	categorie_products = get_categorie_products(categories[categorie_id].url, categorie_page)
 	while "User don't use 0 to exit":
@@ -154,7 +191,7 @@ def categorie_product_manager(categorie_id):
 		print(Color.cyan("Categorie \"{}").format(Color.yellow(categories[categorie_id].name)) + Color.cyan("\" Page {}").format(categorie_page))
 		for i in range(min(20,len(categorie_products))):
 			print("{} - {} {}".format(Color.green(i+1), categorie_products[i].name, categorie_products[i].brands))
-		uinput = input(Color.cyan("(Entrez: Un numéro pour selectionner un produit | S pour page suivante | P pour page précedente | 0 pour revenir au catégorie)\n"))
+		uinput = input(Color.cyan("(Entrez: Numéro - selectionner un produit | S - page suivante | P - page précedente | 0 - revenir aux catégories)\n"))
 
 		# Exit catagorie product manager
 		if uinput is '0':
@@ -174,13 +211,14 @@ def categorie_product_manager(categorie_id):
 			categorie_products = get_categorie_products(categories[categorie_id].url, categorie_page)
 
 def product_manager(product, from_categorie):
+	"""Show and interact with a product"""
 	while "User don't use 0 to exit":
 		# Clear then show product
 		os.system('cls' if os.name=='nt' else 'clear')
 		print(Color.cyan("\t<<< Fiche Produit >>>\n"))
 		print(Color.yellow("Nom du produit: ") + product.name)
 		print(Color.yellow("Marque: ") + product.brands)
-		print(Color.yellow("Nutri-score: ") + product.nutrition_grade)
+		print(Color.yellow("Nutri-score: ") + product.nutrition_grade.upper())
 		print(Color.green("Repères nutritionnels pour 100g:"))
 		print(Color.yellow("\tLipides: ") + str(product.fat))
 		print(Color.yellow("\tAcides gras saturés: ") + str(product.saturated_fat))
@@ -188,30 +226,38 @@ def product_manager(product, from_categorie):
 		print(Color.yellow("\tSel: ") + str(product.salt))
 		print(Color.magenta("URL: ") + product.url)
 
-		uinput = input(Color.cyan("(Entrez: S pour trouver un produit de substitution | N pour ouvrir dans votre navigateur | 0 pour revenir au produit de {})\n").format(from_categorie))
+		uinput = input(Color.cyan("(Entrez: S - Substituer | E - Enregistrer | N - Ouvrir | 0 - Revenir aux produits de {})\n").format(from_categorie))
 
 		# Exit product manager
 		if uinput is '0':
 			break
 
+		# Faire Save
+
 		# Substitute this product
-		if uinput.isalpha():
-			if uinput.lower() == 's':
-				substitute_manager(product)
-			if uinput.lower() == 'n':
-				webbrowser.open(product.url, new=0, autoraise=True)
-			continue
+		if uinput.lower() == 's':
+			substitute_manager(product)
+
+		# Save this product in DB
+		if uinput.lower() == 'e':
+			save_product(product)
+
+		# Open url in web browser
+		if uinput.lower() == 'n':
+			webbrowser.open(product.url, new=0, autoraise=True)
 
 def substitute_manager(product):
+	"""Show and interact with selected product's list"""
+	substitutes = get_substitutes(product)
+
 	while "User don't use 0 to exit":
-		substitutes = get_substitutes(product)
 
 		# Clear then show products
 		os.system('cls' if os.name=='nt' else 'clear')
 		print(Color.cyan("Substitue du produit \"{}").format(Color.yellow(product.name)) + Color.cyan("\""))
 		for i in range(min(20,len(substitutes))):
 			print("{} - {} {}".format(Color.green(i+1), substitutes[i].name, substitutes[i].brands))
-		uinput = input(Color.cyan("(Entrez: Un numéro pour selectionner un produit | S pour page suivante | P pour page précedente | 0 pour revenir au catégorie)\n"))
+		uinput = input(Color.cyan("(Entrez: Numéro - selectionner un produit | S - page suivante | P - page précedente | 0 - revenir au produit {})\n").format(product.name))
 
 		# Exit substitute manager
 		if uinput is '0':
@@ -222,15 +268,55 @@ def substitute_manager(product):
 			product_manager(substitutes[int(uinput)-1], "Substitution de {}".format(product.name))
 			continue
 
-print("Bienvenue")
+def db_substitute_manager():
+	"""Show and interact with selected product's list"""
+	products = get_db_products()
+	while "User don't use 0 to exit":
+
+		# Clear then show products
+		os.system('cls' if os.name=='nt' else 'clear')
+		print(Color.cyan("Produit enregistré:"))
+		for i in range(min(20,len(products))):
+			print("{} - {} {}".format(Color.green(i+1), products[i].name, products[i].brands))
+		uinput = input(Color.cyan("(Entrez: Numéro - selectionner un produit | S - page suivante | P - page précedente | 0 - revenir au menu principal)\n"))
+
+		# Exit substitute manager
+		if uinput is '0':
+			break
+
+		# Select product
+		if uinput.isdigit():
+			product_manager(products[int(uinput)-1], "menu principal")
+			continue
+
+def main_manager():
+	"""Show and start availables options"""
+	while "User don't use 0 to exit":
+
+		# Clear then show main application options
+		os.system('cls' if os.name=='nt' else 'clear')
+		print(Color.cyan("\t<<< Menu Principal >>>"))
+		print("{} - {}".format(Color.green("1"), "Trouver un produit (Catégorie > Produit)"))
+		print("{} - {}".format(Color.green("2"), "Afficher les produits substitué"))
+		uinput = input(Color.cyan("(Entrez: Un numéro pour choisir un menu | 0 pour quitter)\n"))
+
+		# Exit substitute manager
+		if uinput is '0':
+			break
+
+		# Open categorie manager
+		if uinput is '1':
+			categorie_manager()
+			continue
+
+		# Open db substitute manager
+		if uinput is '2':
+			db_substitute_manager()
+			continue
 
 #update_categories()
-categories = get_categories()
 
-print("{} categories loaded".format(len(categories)))
-categorie_manager()
-	
-# Nutrition_grade_fr
+main_manager()
 
 db.close()
 print("Au revoir !")
