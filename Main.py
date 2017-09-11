@@ -7,7 +7,11 @@ from Categorie import Categorie
 from Product import Product
 
 API_URL = "https://fr.openfoodfacts.org/"
-db = MySQLdb.connect(user='root', passwd='root', host='127.0.0.1', db='openfoodfacts')
+try:
+	db = MySQLdb.connect(user='root', passwd='root', host='127.0.0.1', db='openfoodfacts')
+except MySQLdb.OperationalError:
+	print("No database detected, closing the application")
+	exit(0)
 db.set_character_set('utf8')
 categories = list()
 
@@ -65,6 +69,7 @@ def get_categorie_products(url, page_number):
 	result = requests.get("{}/{}.json".format(url, page_number)).json()
 	products = list()
 	for element in result['products']:
+		# Data cheking
 		if not all(k in element for k in ("product_name","brands", "id", "nutrition_grade_fr", "url", "categories_prev_tags")):
 			continue
 		if not all(k in element['nutriments'] for k in ("fat_100g","saturated-fat_100g", "sugars_100g", "salt_100g")):
@@ -86,10 +91,13 @@ def get_substitutes(product):
 	products = list()
 	for element in result['products']:
 		healthy_test = 0
+		# Data checking
 		if not all(k in element for k in ("product_name","brands", "id", "nutrition_grade_fr", "url", "categories_prev_tags")):
 			continue
 		if not all(k in element['nutriments'] for k in ("fat_100g","saturated-fat_100g", "sugars_100g", "salt_100g")):
 			continue
+
+		# Healthy cheking
 		if float(element['nutriments']['fat_100g']) < float(product.fat):
 			healthy_test += 1
 		if float(element['nutriments']['saturated-fat_100g']) < float(product.saturated_fat):
@@ -100,6 +108,7 @@ def get_substitutes(product):
 			healthy_test += 1
 		if healthy_test < 3:
 			continue
+
 		products.append(Product(element['id'], element['product_name'], element['brands'], element['nutrition_grade_fr'],
 			element['nutriments']['fat_100g'], element['nutriments']['saturated-fat_100g'], 
 			element['nutriments']['sugars_100g'], element['nutriments']['salt_100g'],
@@ -249,14 +258,15 @@ def product_manager(product, from_categorie):
 def substitute_manager(product):
 	"""Show and interact with selected product's list"""
 	substitutes = get_substitutes(product)
+	substitute_page = 0
 
 	while "User don't use 0 to exit":
 
 		# Clear then show products
 		os.system('cls' if os.name=='nt' else 'clear')
 		print(Color.cyan("Substitue du produit \"{}").format(Color.yellow(product.name)) + Color.cyan("\""))
-		for i in range(min(20,len(substitutes))):
-			print("{} - {} {}".format(Color.green(i+1), substitutes[i].name, substitutes[i].brands))
+		for i in range(min(20,(len(substitutes)-substitute_page*20))):
+			print("{} - {} {}".format(Color.green(i+1), substitutes[i-substitute_page*20].name, substitutes[i-substitute_page*20].brands))
 		uinput = input(Color.cyan("(Entrez: Numéro - selectionner un produit | S - page suivante | P - page précedente | 0 - revenir au produit {})\n").format(product.name))
 
 		# Exit substitute manager
@@ -265,8 +275,16 @@ def substitute_manager(product):
 
 		# Select product
 		if uinput.isdigit():
-			product_manager(substitutes[int(uinput)-1], "Substitution de {}".format(product.name))
+			product_manager(substitutes[int(uinput)-1-substitute_page*20], "Substitution de {}".format(product.name))
 			continue
+
+		# Change page
+		if uinput.isalpha():
+			if uinput.lower() == 's':
+				substitute_page += 1
+			if uinput.lower() == 'p':
+				if substitute_page > 0:
+					substitute_page -= 1
 
 def db_substitute_manager():
 	"""Show and interact with selected product's list"""
@@ -277,7 +295,7 @@ def db_substitute_manager():
 		os.system('cls' if os.name=='nt' else 'clear')
 		print(Color.cyan("Produit enregistré:"))
 		for i in range(min(20,len(products))):
-			print("{} - {} {}".format(Color.green(i+1), products[i].name, products[i].brands))
+			print("{} - {} {}".format(Color.green(i+1), products[i-substitute_page*20].name, products[i-substitute_page*20].brands))
 		uinput = input(Color.cyan("(Entrez: Numéro - selectionner un produit | S - page suivante | P - page précedente | 0 - revenir au menu principal)\n"))
 
 		# Exit substitute manager
@@ -298,6 +316,7 @@ def main_manager():
 		print(Color.cyan("\t<<< Menu Principal >>>"))
 		print("{} - {}".format(Color.green("1"), "Trouver un produit (Catégorie > Produit)"))
 		print("{} - {}".format(Color.green("2"), "Afficher les produits substitué"))
+		print("{} - {}".format(Color.green("3"), "Mettre à jour les catégories"))
 		uinput = input(Color.cyan("(Entrez: Un numéro pour choisir un menu | 0 pour quitter)\n"))
 
 		# Exit substitute manager
@@ -314,9 +333,15 @@ def main_manager():
 			db_substitute_manager()
 			continue
 
-#update_categories()
+		# Update categorie in database
+		if uinput is '3':
+			print("Mise à jour des catégories en cours...")
+			update_categories()
+			continue
 
 main_manager()
+
+# add where buy it
 
 db.close()
 print("Au revoir !")
