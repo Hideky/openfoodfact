@@ -1,10 +1,11 @@
 # Categories Table
 CREATE TABLE `categories` (
-  `categories_id` int(11) NOT NULL,
+  `categories_id` int(11) NOT NULL AUTO_INCREMENT,
   `id` varchar(100) NOT NULL,
   `name` varchar(100) NOT NULL,
   `products` int(11) NOT NULL,
-  `url` varchar(150) NOT NULL
+  `url` varchar(150) NOT NULL,
+  PRIMARY KEY (categories_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 # Product Table
@@ -18,5 +19,6 @@ CREATE TABLE `product` (
   `sugars` float NOT NULL,
   `salt` float NOT NULL,
   `url` varchar(150) NOT NULL,
-  `categorie` varchar(100) NOT NULL
+  `categorie` varchar(100) NOT NULL,
+  PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;

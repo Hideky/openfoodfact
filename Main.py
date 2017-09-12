@@ -295,7 +295,7 @@ def db_substitute_manager():
 		os.system('cls' if os.name=='nt' else 'clear')
 		print(Color.cyan("Produit enregistré:"))
 		for i in range(min(20,len(products))):
-			print("{} - {} {}".format(Color.green(i+1), products[i-substitute_page*20].name, products[i-substitute_page*20].brands))
+			print("{} - {} {}".format(Color.green(i+1), products[i].name, products[i].brands))
 		uinput = input(Color.cyan("(Entrez: Numéro - selectionner un produit | S - page suivante | P - page précedente | 0 - revenir au menu principal)\n"))
 
 		# Exit substitute manager
