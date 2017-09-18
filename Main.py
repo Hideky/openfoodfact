@@ -12,7 +12,9 @@ try:
 except MySQLdb.OperationalError:
     print("No database detected, closing the application")
     exit(0)
+
 db.set_character_set('utf8')
+
 categories = list()
 
 def fetch(path):
